@@ -3,16 +3,11 @@ import sqlite3
 import os
 from datetime import datetime, timedelta
 
-# ---------- STIL (tamna tema, bledja nijansa) ----------
+# ---------- STIL ----------
 st.markdown("""
 <style>
-    .stApp {
-        background-color: #2d2d2d;
-        color: #e0e0e0;
-    }
-    h1, h2, h3 {
-        color: #d4af37 !important;
-    }
+    .stApp { background-color: #2d2d2d; color: #e0e0e0; }
+    h1, h2, h3 { color: #d4af37 !important; }
     .stButton button {
         background-color: #d4af37 !important;
         color: #1a1a1a !important;
@@ -21,10 +16,7 @@ st.markdown("""
         border: none !important;
         transition: 0.3s;
     }
-    .stButton button:hover {
-        background-color: #e6c86a !important;
-        transform: scale(1.02);
-    }
+    .stButton button:hover { background-color: #e6c86a !important; transform: scale(1.02); }
     .stMetric {
         background-color: #3a3a3a;
         border-radius: 12px;
@@ -32,31 +24,17 @@ st.markdown("""
         border: 1px solid #d4af37;
         color: #e0e0e0;
     }
-    .stMetric label, .stMetric div {
-        color: #e0e0e0 !important;
-    }
-    .stSelectbox, .stTextInput, .stNumberInput {
-        background-color: #3a3a3a !important;
-        color: #e0e0e0 !important;
-    }
-    label {
-        color: #d0d0d0 !important;
-    }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
+    .stMetric label, .stMetric div { color: #e0e0e0 !important; }
+    .stSelectbox, .stTextInput, .stNumberInput { background-color: #3a3a3a !important; color: #e0e0e0 !important; }
+    label { color: #d0d0d0 !important; }
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
     .stTabs [data-baseweb="tab"] {
         background-color: #3a3a3a;
         border-radius: 8px 8px 0 0;
         padding: 10px 20px;
         color: #e0e0e0;
     }
-    .stTabs [aria-selected="true"] {
-        background-color: #d4af37 !important;
-        color: #1a1a1a !important;
-        font-weight: bold;
-    }
-    /* Tabela za usluge - zlatne linije */
+    .stTabs [aria-selected="true"] { background-color: #d4af37 !important; color: #1a1a1a !important; font-weight: bold; }
     .usluge-tabela {
         border-collapse: collapse;
         width: 100%;
@@ -67,13 +45,8 @@ st.markdown("""
         padding: 8px 12px;
         text-align: left;
     }
-    .usluge-tabela tr:nth-child(even) {
-        background-color: #3a3a3a;
-    }
-    .usluge-tabela tr:nth-child(odd) {
-        background-color: #2d2d2d;
-    }
-    /* Klijent kartice */
+    .usluge-tabela tr:nth-child(even) { background-color: #3a3a3a; }
+    .usluge-tabela tr:nth-child(odd) { background-color: #2d2d2d; }
     .klijent-kartica {
         background-color: #3a3a3a;
         border-radius: 12px;
@@ -128,7 +101,6 @@ def init_db():
     if not c.fetchone():
         c.execute("INSERT INTO konfiguracija (lozinka) VALUES ('1234')")
     
-    # Pauze više nisu u admin panelu, ali tabela ostaje (za automatske pauze)
     c.execute('''CREATE TABLE IF NOT EXISTS pauze 
                  (id INTEGER PRIMARY KEY, datum TEXT, vreme TEXT, napomena TEXT)''')
     
@@ -158,29 +130,19 @@ def generisi_datume():
 
 def generisi_slotove_za_dan(datum_str):
     dan = datetime.strptime(datum_str, "%Y-%m-%d")
-    
-    # ⛔ NEDELJA - NERADNA
     if dan.weekday() == 6:
         return
     
     conn = sqlite3.connect('termini.db')
     c = conn.cursor()
     
-    # 🔥 DODAJ AUTOMATSKU PAUZU ZA SVAKI DAN (12-13h)
-    # Proveri da li pauza već postoji za ovaj dan
-    c.execute("SELECT vreme FROM pauze WHERE datum=? AND vreme BETWEEN '12:00' AND '13:00'", (datum_str,))
-    pauze = [row[0] for row in c.fetchall()]
-    
-    # Ako nema pauze, dodaj je
-    if not pauze:
-        # Dodaj pauzu od 12:00 do 13:00 (na svakih 15 min)
-        for i in range(PAUZA_POCETAK*4, PAUZA_KRAJ*4):  # 12:00 = 48, 13:00 = 52 (na 15 min)
-            vreme = f"{i//4:02d}:{(i%4)*15:02d}"
-            c.execute("INSERT INTO pauze (datum, vreme, napomena) VALUES (?, ?, ?)", (datum_str, vreme, "Ručak"))
-    
-    # Dohvati sve pauze za ovaj dan
     c.execute("SELECT vreme FROM pauze WHERE datum=?", (datum_str,))
     pauze = [row[0] for row in c.fetchall()]
+    
+    for i in range(PAUZA_POCETAK*4, PAUZA_KRAJ*4):
+        vreme = f"{i//4:02d}:{(i%4)*15:02d}"
+        if vreme not in pauze:
+            pauze.append(vreme)
     
     c.execute("DELETE FROM rezervacije WHERE datum=? AND ime IS NULL", (datum_str,))
     
@@ -241,53 +203,79 @@ def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
     if trajanje % INTERVAL_MIN != 0:
         broj_slotova += 1
     
+    # 🔥 DOHVATI VREMENA SLOOTOVA (SORTIRANO RASTUĆE)
     c.execute("""
-        SELECT id FROM rezervacije 
+        SELECT vreme FROM rezervacije 
         WHERE datum=? AND vreme >= ? AND ime IS NULL 
         ORDER BY vreme ASC LIMIT ?
     """, (datum, pocetak, broj_slotova))
     
-    ids = [row[0] for row in c.fetchall()]
+    vremena = [row[0] for row in c.fetchall()]
     
-    if len(ids) < broj_slotova:
+    if len(vremena) < broj_slotova:
         conn.close()
         return False
     
-    for id in ids:
-        c.execute("DELETE FROM rezervacije WHERE id=?", (id,))
+    # 🔥 SORTIRAJ VREMENA
+    vremena.sort()
     
-    for i in range(broj_slotova):
-        vreme = (datetime.strptime(pocetak, "%H:%M") + timedelta(minutes=i*INTERVAL_MIN)).strftime("%H:%M")
-        c.execute("""
-            INSERT INTO rezervacije (usluga, datum, vreme, ime, telefon, cena, naplaceno, datum_naplate)
-            VALUES (?, ?, ?, ?, ?, ?, 0, ?)
-        """, (usluga, datum, vreme, ime, telefon, cena, None))
+    # Provera uzastopnosti
+    for i in range(len(vremena) - 1):
+        t1 = datetime.strptime(vremena[i], "%H:%M")
+        t2 = datetime.strptime(vremena[i+1], "%H:%M")
+        if (t2 - t1).seconds // 60 != INTERVAL_MIN:
+            conn.close()
+            return False
     
-    conn.commit()
+    # 🔥 BRIŠEMO SVE SLOTOVE ZA TAJ DAN
+    c.execute("DELETE FROM rezervacije WHERE datum=?", (datum,))
     
-    c.execute("SELECT COUNT(*) FROM rezervacije WHERE ime=? AND datum=? AND vreme=?", (ime, datum, pocetak))
-    count = c.fetchone()[0]
+    # Ponovo kreiramo sve slotove za taj dan
+    dan = datetime.strptime(datum, "%Y-%m-%d")
+    sat_start, min_start = RADNO_VREME[0]
+    sat_kraj, min_kraj = RADNO_VREME[1]
+    trenutno = datetime.strptime(datum, "%Y-%m-%d").replace(hour=sat_start, minute=min_start)
+    kraj = datetime.strptime(datum, "%Y-%m-%d").replace(hour=sat_kraj, minute=min_kraj)
+    
+    c.execute("SELECT vreme FROM pauze WHERE datum=?", (datum,))
+    pauze = [row[0] for row in c.fetchall()]
+    for i in range(PAUZA_POCETAK*4, PAUZA_KRAJ*4):
+        vreme = f"{i//4:02d}:{(i%4)*15:02d}"
+        if vreme not in pauze:
+            pauze.append(vreme)
+    
+    slotovi = []
+    while trenutno < kraj:
+        vreme = trenutno.strftime("%H:%M")
+        if vreme not in pauze:
+            if vreme in vremena:
+                slotovi.append((usluga, datum, vreme, ime, telefon, cena, 0, None))
+            else:
+                slotovi.append((None, datum, vreme, None, None, None, 0, None))
+        trenutno += timedelta(minutes=INTERVAL_MIN)
+    
+    if slotovi:
+        c.executemany("INSERT INTO rezervacije (usluga, datum, vreme, ime, telefon, cena, naplaceno, datum_naplate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", slotovi)
+        conn.commit()
+    
     conn.close()
+    
+    # Provera
+    conn2 = sqlite3.connect('termini.db')
+    c2 = conn2.cursor()
+    c2.execute("SELECT COUNT(*) FROM rezervacije WHERE ime=? AND datum=? AND vreme=?", (ime, datum, pocetak))
+    count = c2.fetchone()[0]
+    conn2.close()
     
     return count > 0
 
 # ---------- UI ----------
 st.set_page_config(page_title="💈 Zakazivanje", layout="centered")
 
-try:
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.image("IMG-7dca0f9a0a28a9b8098a0cf36f04adb2-V.jpg", use_column_width=True)
-except:
-    st.info("🖼️ Logo nije učitan, ali aplikacija radi.")
-
 st.title("💈 Berberski salon - Zakazivanje")
 
 tab1, tab2 = st.tabs(["📅 Zakazivanje", "🔑 Admin Panel"])
 
-# ===================================================================
-# TAB 1: KLIJENTI
-# ===================================================================
 with tab1:
     if 'booking_success' not in st.session_state:
         st.session_state['booking_success'] = False
@@ -366,9 +354,6 @@ with tab1:
         else:
             st.error("❌ Baza je prazna.")
 
-# ===================================================================
-# TAB 2: ADMIN
-# ===================================================================
 with tab2:
     if "admin" not in st.session_state:
         st.session_state.admin = False
@@ -522,10 +507,8 @@ with tab2:
         else:
             st.info("📭 Trenutno nema zakazanih klijenata.")
         
-        # ---------- UPRAVLJANJE USLUGAMA (tabelarni prikaz sa zlatnim linijama) ----------
         st.subheader("📝 Upravljanje uslugama")
         
-        # Dodavanje nove usluge
         with st.form("dodaj_uslugu"):
             col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
@@ -543,7 +526,6 @@ with tab2:
                         st.success(f"✅ Dodato: {nova_usluga} - {nova_cena} din")
                         st.rerun()
         
-        # Tabelarni prikaz svih usluga sa zlatnim linijama
         conn = sqlite3.connect('termini.db')
         c = conn.cursor()
         c.execute("SELECT usluga, cena, trajanje FROM cenovnik ORDER BY usluga")
@@ -579,8 +561,6 @@ with tab2:
             
             st.markdown("</table>", unsafe_allow_html=True)
             
-            # Ručna obrada za dugmad (pošto Streamlit ne podržava forme u tabelama)
-            # Ovo je rešeno preko standardnih Streamlit widget-a ispod tabele
             st.write("---")
             st.write("**Izmena postojećih usluga:**")
             
