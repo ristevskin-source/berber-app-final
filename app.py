@@ -164,7 +164,6 @@ def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
     if trajanje % INTERVAL_MIN != 0:
         broj_slotova += 1
     
-    # 🔥 Dohvati SVE slotove od početka (ne samo prazne)
     c.execute("""
         SELECT vreme, ime FROM rezervacije 
         WHERE datum=? AND vreme >= ? 
@@ -173,7 +172,6 @@ def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
     
     slotovi = c.fetchall()
     
-    # 🔥 Provera: da li ima dovoljno slotova i da li su svi prazni?
     if len(slotovi) < broj_slotova:
         conn.close()
         return False
@@ -181,9 +179,8 @@ def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
     for vreme, ime_slota in slotovi:
         if ime_slota is not None:
             conn.close()
-            return False  # Barem jedan slot je zauzet
+            return False
     
-    # Provera uzastopnosti
     vremena = [row[0] for row in slotovi]
     for i in range(broj_slotova - 1):
         t1 = datetime.strptime(vremena[i], "%H:%M")
@@ -192,7 +189,6 @@ def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
             conn.close()
             return False
     
-    # 🔥 Ažuriraj sve slotove
     for vreme in vremena:
         c.execute("SELECT id FROM rezervacije WHERE datum=? AND vreme=?", (datum, vreme))
         id = c.fetchone()[0]
@@ -319,12 +315,16 @@ with tab2:
         c = conn.cursor()
         today = datetime.now().strftime("%Y-%m-%d")
         
-        c.execute("SELECT count(*) FROM rezervacije WHERE datum=? AND ime IS NOT NULL", (today,))
-        danas_klijenata = c.fetchone()[0]
+        # 🔥 BROJ KLIJENATA (ne slotova)
+        c.execute("""
+            SELECT COUNT(DISTINCT ime || '|' || datum || '|' || usluga) 
+            FROM rezervacije 
+            WHERE ime IS NOT NULL AND datum=?
+        """, (today,))
+        danas_klijenata = c.fetchone()[0] or 0
         
         c.execute("SELECT count(*) FROM rezervacije WHERE ime IS NOT NULL AND (naplaceno IS NULL OR naplaceno=0)")
-        nenaplaceno = c.fetchone()[0]
-        
+        nenaplaceno = c.fetchone()[0] or 0
         conn.close()
         
         col1, col2 = st.columns(2)
