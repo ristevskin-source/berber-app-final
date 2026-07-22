@@ -94,4 +94,3 @@ with st.form("klijent_forma"):
         st.warning("Nema slobodnih termina.")
 
 
-Sadržaj app.py. Dobar? 
