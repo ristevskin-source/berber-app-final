@@ -74,10 +74,10 @@ def generisi_slotove_za_dan(datum_str):
     while trenutno < kraj:
         vreme = trenutno.strftime("%H:%M")
         if vreme not in pauze:
-            slotovi.append((None, datum_str, vreme, None, None, None, 0))
+            slotovi.append((None, datum_str, vreme, None, None, None, 0, None))
         trenutno += timedelta(minutes=INTERVAL_MIN)
     if slotovi:
-        c.executemany("INSERT INTO rezervacije (usluga, datum, vreme, ime, telefon, cena, naplaceno) VALUES (?, ?, ?, ?, ?, ?, ?)", slotovi)
+        c.executemany("INSERT INTO rezervacije (usluga, datum, vreme, ime, telefon, cena, naplaceno, datum_naplate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", slotovi)
         conn.commit()
     conn.close()
 
