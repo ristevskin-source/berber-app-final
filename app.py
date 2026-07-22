@@ -315,15 +315,17 @@ with tab2:
         c = conn.cursor()
         today = datetime.now().strftime("%Y-%m-%d")
         
-        # 🔥 BROJ KLIJENATA (ne slotova)
+        # 🔥 BROJ KLIJENATA (ispravan način)
         c.execute("""
-            SELECT COUNT(DISTINCT ime || '|' || datum || '|' || usluga) 
-            FROM rezervacije 
-            WHERE ime IS NOT NULL AND datum=?
+            SELECT COUNT(*) FROM (
+                SELECT DISTINCT ime, datum, usluga 
+                FROM rezervacije 
+                WHERE ime IS NOT NULL AND datum=?
+            )
         """, (today,))
         danas_klijenata = c.fetchone()[0] or 0
         
-        c.execute("SELECT count(*) FROM rezervacije WHERE ime IS NOT NULL AND (naplaceno IS NULL OR naplaceno=0)")
+        c.execute("SELECT COUNT(*) FROM rezervacije WHERE ime IS NOT NULL AND (naplaceno IS NULL OR naplaceno=0)")
         nenaplaceno = c.fetchone()[0] or 0
         conn.close()
         
