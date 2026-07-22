@@ -124,7 +124,6 @@ def generisi_slotove_za_dan(datum_str):
     conn = sqlite3.connect('termini.db')
     c = conn.cursor()
     
-    # Brišemo SAMO prazne slotove
     c.execute("DELETE FROM rezervacije WHERE datum=? AND ime IS NULL", (datum_str,))
     
     sat_start, min_start = RADNO_VREME[0]
@@ -156,7 +155,7 @@ def osvezi_termine():
     for d in datumi:
         generisi_slotove_za_dan(d)
 
-# ---------- REZERVACIJA (ažurira SVE slotove u opsegu) ----------
+# ---------- REZERVACIJA ----------
 def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
     conn = sqlite3.connect('termini.db')
     c = conn.cursor()
@@ -165,24 +164,27 @@ def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
     if trajanje % INTERVAL_MIN != 0:
         broj_slotova += 1
     
-    # Dohvati ID-ove slobodnih slotova od početka
+    # 🔥 Dohvati SVE slotove od početka (ne samo prazne)
     c.execute("""
-        SELECT id FROM rezervacije 
-        WHERE datum=? AND vreme >= ? AND ime IS NULL 
+        SELECT vreme, ime FROM rezervacije 
+        WHERE datum=? AND vreme >= ? 
         ORDER BY vreme ASC LIMIT ?
     """, (datum, pocetak, broj_slotova))
     
-    ids = [row[0] for row in c.fetchall()]
+    slotovi = c.fetchall()
     
-    if len(ids) < broj_slotova:
+    # 🔥 Provera: da li ima dovoljno slotova i da li su svi prazni?
+    if len(slotovi) < broj_slotova:
         conn.close()
         return False
     
-    # Proveri da su slotovi uzastopni
-    placeholders = ','.join('?' * len(ids))
-    c.execute(f"SELECT vreme FROM rezervacije WHERE id IN ({placeholders}) ORDER BY vreme ASC", ids)
-    vremena = [row[0] for row in c.fetchall()]
+    for vreme, ime_slota in slotovi:
+        if ime_slota is not None:
+            conn.close()
+            return False  # Barem jedan slot je zauzet
     
+    # Provera uzastopnosti
+    vremena = [row[0] for row in slotovi]
     for i in range(broj_slotova - 1):
         t1 = datetime.strptime(vremena[i], "%H:%M")
         t2 = datetime.strptime(vremena[i+1], "%H:%M")
@@ -190,8 +192,10 @@ def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
             conn.close()
             return False
     
-    # Ažuriraj sve slotove
-    for id in ids:
+    # 🔥 Ažuriraj sve slotove
+    for vreme in vremena:
+        c.execute("SELECT id FROM rezervacije WHERE datum=? AND vreme=?", (datum, vreme))
+        id = c.fetchone()[0]
         c.execute("""
             UPDATE rezervacije 
             SET ime=?, telefon=?, usluga=?, cena=?, naplaceno=0 
@@ -327,7 +331,7 @@ with tab2:
         with col1:
             st.metric("📅 Danas", f"{danas_klijenata} klijenata")
         with col2:
-            st.metric("⏳ Čeka naplatu", f"{nenaplaceno}")
+            st.metric("⏳ Nenaplaćeni slotovi", f"{nenaplaceno}")
         
         st.subheader("📊 Finansijski izveštaj")
         
@@ -397,7 +401,6 @@ with tab2:
             for idx, red in enumerate(grupe, start=1):
                 ime, telefon, usluga, cena, datum, pocetak, kraj, ids, broj_slotova = red
                 
-                # Izračunaj trajanje
                 t1 = datetime.strptime(pocetak, "%H:%M")
                 t2 = datetime.strptime(kraj, "%H:%M")
                 trajanje = (t2 - t1).seconds // 60 + INTERVAL_MIN
@@ -417,7 +420,6 @@ with tab2:
                         <span>
                 """, unsafe_allow_html=True)
                 
-                # Provera naplate
                 first_id = int(ids.split(',')[0])
                 conn2 = sqlite3.connect('termini.db')
                 c2 = conn2.cursor()
