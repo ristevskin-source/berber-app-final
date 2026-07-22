@@ -3,6 +3,11 @@ import sqlite3
 import os
 from datetime import datetime, timedelta
 
+# 🔥 SAMO JEDNOM - obriši staru bazu
+if os.path.exists("termini.db"):
+    os.remove("termini.db")
+    st.info("🗑️ Stara baza je obrisana. Kreiram novu...")
+
 RADNO_VREME = [(9,0), (20,0)]
 INTERVAL_MIN = 15
 BROJ_DANA = 7
@@ -10,18 +15,15 @@ BROJ_DANA = 7
 def init_db():
     conn = sqlite3.connect('termini.db')
     c = conn.cursor()
-    
-    # 🔥 IZMENA: 9 KOLONA (id se automatski dodaje)
+    # 🔥 TAČNA STRUKTURA (9 kolona, id se automatski dodaje)
     c.execute('''CREATE TABLE IF NOT EXISTS rezervacije 
                  (id INTEGER PRIMARY KEY, usluga TEXT, datum TEXT, vreme TEXT, 
                   ime TEXT, telefon TEXT, cena INTEGER, naplaceno INTEGER DEFAULT 0, datum_naplate TEXT)''')
-    
     c.execute('''CREATE TABLE IF NOT EXISTS cenovnik (
                     usluga TEXT PRIMARY KEY, 
                     cena INTEGER,
                     trajanje INTEGER
                 )''')
-    
     usluge = [
         ('💇 Šišanje', 1500, 45),
         ('💇 Šišanje + pranje kose', 1900, 60),
@@ -32,15 +34,12 @@ def init_db():
         ('✨ Obrve (samo)', 400, 15)
     ]
     c.executemany("INSERT OR IGNORE INTO cenovnik (usluga, cena, trajanje) VALUES (?, ?, ?)", usluge)
-    
     c.execute('''CREATE TABLE IF NOT EXISTS konfiguracija (lozinka TEXT)''')
     c.execute("SELECT * FROM konfiguracija")
     if not c.fetchone():
         c.execute("INSERT INTO konfiguracija (lozinka) VALUES ('1234')")
-    
     c.execute('''CREATE TABLE IF NOT EXISTS pauze 
                  (id INTEGER PRIMARY KEY, datum TEXT, vreme TEXT, napomena TEXT)''')
-    
     conn.commit()
     conn.close()
 
@@ -81,11 +80,9 @@ def generisi_slotove_za_dan(datum_str):
     while trenutno < kraj:
         vreme = trenutno.strftime("%H:%M")
         if vreme not in pauze:
-            # 🔥 SADA 8 VREDNOSTI (odgovara INSERT-u)
             slotovi.append((None, datum_str, vreme, None, None, None, 0, None))
         trenutno += timedelta(minutes=INTERVAL_MIN)
     if slotovi:
-        # 🔥 8 KOLONA u INSERT-u
         c.executemany("INSERT INTO rezervacije (usluga, datum, vreme, ime, telefon, cena, naplaceno, datum_naplate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", slotovi)
         conn.commit()
     conn.close()
