@@ -203,69 +203,33 @@ def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
     if trajanje % INTERVAL_MIN != 0:
         broj_slotova += 1
     
-    # 🔥 DOHVATI VREMENA SLOOTOVA (SORTIRANO RASTUĆE)
+    # 🔥 Dohvati ID-ove slotova koje treba zauzeti
     c.execute("""
-        SELECT vreme FROM rezervacije 
+        SELECT id FROM rezervacije 
         WHERE datum=? AND vreme >= ? AND ime IS NULL 
         ORDER BY vreme ASC LIMIT ?
     """, (datum, pocetak, broj_slotova))
     
-    vremena = [row[0] for row in c.fetchall()]
+    ids = [row[0] for row in c.fetchall()]
     
-    if len(vremena) < broj_slotova:
+    if len(ids) < broj_slotova:
         conn.close()
         return False
     
-    # 🔥 SORTIRAJ VREMENA
-    vremena.sort()
+    # 🔥 Ažuriraj samo te slotove (ne briši celu bazu)
+    for id in ids:
+        c.execute("""
+            UPDATE rezervacije 
+            SET ime=?, telefon=?, usluga=?, cena=?, naplaceno=0 
+            WHERE id=?
+        """, (ime, telefon, usluga, cena, id))
     
-    # Provera uzastopnosti
-    for i in range(len(vremena) - 1):
-        t1 = datetime.strptime(vremena[i], "%H:%M")
-        t2 = datetime.strptime(vremena[i+1], "%H:%M")
-        if (t2 - t1).seconds // 60 != INTERVAL_MIN:
-            conn.close()
-            return False
-    
-    # 🔥 BRIŠEMO SVE SLOTOVE ZA TAJ DAN
-    c.execute("DELETE FROM rezervacije WHERE datum=?", (datum,))
-    
-    # Ponovo kreiramo sve slotove za taj dan
-    dan = datetime.strptime(datum, "%Y-%m-%d")
-    sat_start, min_start = RADNO_VREME[0]
-    sat_kraj, min_kraj = RADNO_VREME[1]
-    trenutno = datetime.strptime(datum, "%Y-%m-%d").replace(hour=sat_start, minute=min_start)
-    kraj = datetime.strptime(datum, "%Y-%m-%d").replace(hour=sat_kraj, minute=min_kraj)
-    
-    c.execute("SELECT vreme FROM pauze WHERE datum=?", (datum,))
-    pauze = [row[0] for row in c.fetchall()]
-    for i in range(PAUZA_POCETAK*4, PAUZA_KRAJ*4):
-        vreme = f"{i//4:02d}:{(i%4)*15:02d}"
-        if vreme not in pauze:
-            pauze.append(vreme)
-    
-    slotovi = []
-    while trenutno < kraj:
-        vreme = trenutno.strftime("%H:%M")
-        if vreme not in pauze:
-            if vreme in vremena:
-                slotovi.append((usluga, datum, vreme, ime, telefon, cena, 0, None))
-            else:
-                slotovi.append((None, datum, vreme, None, None, None, 0, None))
-        trenutno += timedelta(minutes=INTERVAL_MIN)
-    
-    if slotovi:
-        c.executemany("INSERT INTO rezervacije (usluga, datum, vreme, ime, telefon, cena, naplaceno, datum_naplate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", slotovi)
-        conn.commit()
-    
-    conn.close()
+    conn.commit()
     
     # Provera
-    conn2 = sqlite3.connect('termini.db')
-    c2 = conn2.cursor()
-    c2.execute("SELECT COUNT(*) FROM rezervacije WHERE ime=? AND datum=? AND vreme=?", (ime, datum, pocetak))
-    count = c2.fetchone()[0]
-    conn2.close()
+    c.execute("SELECT COUNT(*) FROM rezervacije WHERE ime=? AND datum=? AND vreme=?", (ime, datum, pocetak))
+    count = c.fetchone()[0]
+    conn.close()
     
     return count > 0
 
