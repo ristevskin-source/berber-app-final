@@ -195,6 +195,7 @@ def dovoljno_slobodnih_slotova(datum, pocetak, trajanje):
             return False
     return True
 
+
 def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
     conn = sqlite3.connect('termini.db')
     c = conn.cursor()
@@ -203,20 +204,30 @@ def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
     if trajanje % INTERVAL_MIN != 0:
         broj_slotova += 1
     
-    # 🔥 Dohvati ID-ove slotova koje treba zauzeti
+    # 🔥 Dohvati ID-ove slotova OD IZABRANOG VREMENA
     c.execute("""
-        SELECT id FROM rezervacije 
+        SELECT id, vreme FROM rezervacije 
         WHERE datum=? AND vreme >= ? AND ime IS NULL 
         ORDER BY vreme ASC LIMIT ?
     """, (datum, pocetak, broj_slotova))
     
-    ids = [row[0] for row in c.fetchall()]
+    pronadjeni = c.fetchall()
     
-    if len(ids) < broj_slotova:
+    # 🔥 PROVERA: da li je prvi slot baš onaj koji je izabran?
+    if len(pronadjeni) < broj_slotova or pronadjeni[0][1] != pocetak:
         conn.close()
         return False
     
-    # 🔥 Ažuriraj samo te slotove (ne briši celu bazu)
+    # Provera uzastopnosti
+    for i in range(broj_slotova - 1):
+        t1 = datetime.strptime(pronadjeni[i][1], "%H:%M")
+        t2 = datetime.strptime(pronadjeni[i+1][1], "%H:%M")
+        if (t2 - t1).seconds // 60 != INTERVAL_MIN:
+            conn.close()
+            return False
+    
+    # 🔥 Ažuriraj samo te slotove
+    ids = [row[0] for row in pronadjeni]
     for id in ids:
         c.execute("""
             UPDATE rezervacije 
@@ -232,7 +243,6 @@ def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
     conn.close()
     
     return count > 0
-
 # ---------- UI ----------
 st.set_page_config(page_title="💈 Zakazivanje", layout="centered")
 
