@@ -124,6 +124,7 @@ def generisi_slotove_za_dan(datum_str):
     conn = sqlite3.connect('termini.db')
     c = conn.cursor()
     
+    # Brišemo SAMO prazne slotove
     c.execute("DELETE FROM rezervacije WHERE datum=? AND ime IS NULL", (datum_str,))
     
     sat_start, min_start = RADNO_VREME[0]
@@ -154,6 +155,52 @@ def osvezi_termine():
     datumi = generisi_datume()
     for d in datumi:
         generisi_slotove_za_dan(d)
+
+# ---------- REZERVACIJA (ažurira SVE slotove u opsegu) ----------
+def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
+    conn = sqlite3.connect('termini.db')
+    c = conn.cursor()
+    
+    broj_slotova = trajanje // INTERVAL_MIN
+    if trajanje % INTERVAL_MIN != 0:
+        broj_slotova += 1
+    
+    # Dohvati ID-ove slobodnih slotova od početka
+    c.execute("""
+        SELECT id FROM rezervacije 
+        WHERE datum=? AND vreme >= ? AND ime IS NULL 
+        ORDER BY vreme ASC LIMIT ?
+    """, (datum, pocetak, broj_slotova))
+    
+    ids = [row[0] for row in c.fetchall()]
+    
+    if len(ids) < broj_slotova:
+        conn.close()
+        return False
+    
+    # Proveri da su slotovi uzastopni
+    placeholders = ','.join('?' * len(ids))
+    c.execute(f"SELECT vreme FROM rezervacije WHERE id IN ({placeholders}) ORDER BY vreme ASC", ids)
+    vremena = [row[0] for row in c.fetchall()]
+    
+    for i in range(broj_slotova - 1):
+        t1 = datetime.strptime(vremena[i], "%H:%M")
+        t2 = datetime.strptime(vremena[i+1], "%H:%M")
+        if (t2 - t1).seconds // 60 != INTERVAL_MIN:
+            conn.close()
+            return False
+    
+    # Ažuriraj sve slotove
+    for id in ids:
+        c.execute("""
+            UPDATE rezervacije 
+            SET ime=?, telefon=?, usluga=?, cena=?, naplaceno=0 
+            WHERE id=?
+        """, (ime, telefon, usluga, cena, id))
+    
+    conn.commit()
+    conn.close()
+    return True
 
 # ---------- UI ----------
 st.set_page_config(page_title="💈 Zakazivanje", layout="centered")
@@ -218,26 +265,19 @@ with tab1:
                     termin = st.selectbox("Slobodan termin", slobodni)
                     
                     if st.form_submit_button("Zakaži"):
-                        conn = sqlite3.connect('termini.db')
-                        c = conn.cursor()
-                        c.execute("""
-                            UPDATE rezervacije 
-                            SET ime=?, telefon=?, usluga=?, cena=?, naplaceno=0 
-                            WHERE datum=? AND vreme=? AND ime IS NULL
-                        """, (ime, tel, usluga_ime, usluga_cena, datum, termin))
-                        conn.commit()
-                        conn.close()
-                        
-                        st.session_state['booking_success'] = True
-                        st.session_state['booking_details'] = {
-                            'usluga': usluga_ime,
-                            'datum': datum,
-                            'vreme': termin,
-                            'trajanje': usluga_trajanje,
-                            'cena': usluga_cena,
-                            'ime': ime
-                        }
-                        st.rerun()
+                        if rezervisi_blok(datum, termin, usluga_trajanje, ime, tel, usluga_ime, usluga_cena):
+                            st.session_state['booking_success'] = True
+                            st.session_state['booking_details'] = {
+                                'usluga': usluga_ime,
+                                'datum': datum,
+                                'vreme': termin,
+                                'trajanje': usluga_trajanje,
+                                'cena': usluga_cena,
+                                'ime': ime
+                            }
+                            st.rerun()
+                        else:
+                            st.error("❌ Greška pri rezervaciji. Pokušajte ponovo.")
                 else:
                     st.warning("⏳ Nema slobodnih termina za izabrani datum.")
         else:
@@ -343,7 +383,8 @@ with tab2:
         c.execute("""
             SELECT ime, telefon, usluga, cena, datum, 
                    MIN(vreme) as pocetak, MAX(vreme) as kraj,
-                   GROUP_CONCAT(id) as ids
+                   GROUP_CONCAT(id) as ids,
+                   COUNT(*) as broj_slotova
             FROM rezervacije 
             WHERE ime IS NOT NULL 
             GROUP BY ime, datum, usluga, cena, telefon
@@ -354,8 +395,9 @@ with tab2:
         
         if grupe:
             for idx, red in enumerate(grupe, start=1):
-                ime, telefon, usluga, cena, datum, pocetak, kraj, ids = red
+                ime, telefon, usluga, cena, datum, pocetak, kraj, ids, broj_slotova = red
                 
+                # Izračunaj trajanje
                 t1 = datetime.strptime(pocetak, "%H:%M")
                 t2 = datetime.strptime(kraj, "%H:%M")
                 trajanje = (t2 - t1).seconds // 60 + INTERVAL_MIN
@@ -375,7 +417,7 @@ with tab2:
                         <span>
                 """, unsafe_allow_html=True)
                 
-                # Provera naplate (prvi slot u grupi)
+                # Provera naplate
                 first_id = int(ids.split(',')[0])
                 conn2 = sqlite3.connect('termini.db')
                 c2 = conn2.cursor()
