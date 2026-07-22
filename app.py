@@ -3,7 +3,6 @@ import sqlite3
 import os
 from datetime import datetime, timedelta
 
-# 🔥 SAMO JEDNOM - obriši staru bazu
 if os.path.exists("termini.db"):
     os.remove("termini.db")
     st.info("🗑️ Stara baza je obrisana. Kreiram novu...")
@@ -15,7 +14,6 @@ BROJ_DANA = 7
 def init_db():
     conn = sqlite3.connect('termini.db')
     c = conn.cursor()
-    # 🔥 TAČNA STRUKTURA (9 kolona, id se automatski dodaje)
     c.execute('''CREATE TABLE IF NOT EXISTS rezervacije 
                  (id INTEGER PRIMARY KEY, usluga TEXT, datum TEXT, vreme TEXT, 
                   ime TEXT, telefon TEXT, cena INTEGER, naplaceno INTEGER DEFAULT 0, datum_naplate TEXT)''')
@@ -119,28 +117,42 @@ def dovoljno_slobodnih_slotova(datum, pocetak, trajanje):
 def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
     conn = sqlite3.connect('termini.db')
     c = conn.cursor()
+    
     broj_slotova = trajanje // INTERVAL_MIN
     if trajanje % INTERVAL_MIN != 0:
         broj_slotova += 1
+    
+    # 1. Dohvati ID-ove slotova
     c.execute("""
         SELECT id FROM rezervacije 
         WHERE datum=? AND vreme >= ? AND ime IS NULL 
         ORDER BY vreme ASC LIMIT ?
     """, (datum, pocetak, broj_slotova))
+    
     ids = [row[0] for row in c.fetchall()]
+    
     if len(ids) < broj_slotova:
         conn.close()
         return False
-    for id in ids:
+    
+    # 2. Obriši te slotove
+    placeholders = ','.join('?' * len(ids))
+    c.execute(f"DELETE FROM rezervacije WHERE id IN ({placeholders})", ids)
+    
+    # 3. Ubaci nove slotove sa imenom klijenta
+    for i in range(broj_slotova):
+        vreme = (datetime.strptime(pocetak, "%H:%M") + timedelta(minutes=i*INTERVAL_MIN)).strftime("%H:%M")
         c.execute("""
-            UPDATE rezervacije 
-            SET ime=?, telefon=?, usluga=?, cena=?, naplaceno=0 
-            WHERE id=?
-        """, (ime, telefon, usluga, cena, id))
+            INSERT INTO rezervacije (usluga, datum, vreme, ime, telefon, cena, naplaceno, datum_naplate)
+            VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+        """, (usluga, datum, vreme, ime, telefon, cena, None))
+    
     conn.commit()
+    
     c.execute("SELECT COUNT(*) FROM rezervacije WHERE ime=? AND datum=? AND vreme=?", (ime, datum, pocetak))
     count = c.fetchone()[0]
     conn.close()
+    
     return count > 0
 
 st.set_page_config(page_title="💈 Zakazivanje", layout="centered")
