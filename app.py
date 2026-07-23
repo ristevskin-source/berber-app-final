@@ -286,7 +286,6 @@ with tab1:
                     st.warning("⏳ Nema slobodnih termina za izabrani datum.")
         else:
             st.error("❌ Baza je prazna.")
-
 with tab2:
     if "admin" not in st.session_state:
         st.session_state.admin = False
@@ -319,11 +318,17 @@ with tab2:
         c = conn.cursor()
         today = datetime.now().strftime("%Y-%m-%d")
         
-        c.execute("SELECT count(*) FROM rezervacije WHERE datum=? AND ime IS NOT NULL", (today,))
-        danas_klijenata = c.fetchone()[0]
+        # 🔥 BROJ JEDINSTVENIH KLIJENATA DANAS
+        c.execute("""
+            SELECT COUNT(DISTINCT ime || '|' || telefon || '|' || datum || '|' || usluga) 
+            FROM rezervacije 
+            WHERE datum=? AND ime IS NOT NULL
+        """, (today,))
+        danas_klijenata = c.fetchone()[0] or 0
         
-        c.execute("SELECT count(*) FROM rezervacije WHERE ime IS NOT NULL AND (naplaceno IS NULL OR naplaceno=0)")
-        nenaplaceno = c.fetchone()[0]
+        # 🔥 BROJ NENAPLACENIH SLOTOVA (ukupno)
+        c.execute("SELECT COUNT(*) FROM rezervacije WHERE ime IS NOT NULL AND (naplaceno IS NULL OR naplaceno=0)")
+        nenaplaceno = c.fetchone()[0] or 0
         
         conn.close()
         
@@ -391,7 +396,7 @@ with tab2:
                    COUNT(*) as broj_slotova
             FROM rezervacije 
             WHERE ime IS NOT NULL 
-            GROUP BY ime, datum, usluga, cena, telefon
+            GROUP BY ime, telefon, datum, usluga, cena
             ORDER BY datum ASC, pocetak ASC
         """)
         grupe = c.fetchall()
