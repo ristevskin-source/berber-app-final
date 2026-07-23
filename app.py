@@ -113,11 +113,15 @@ def generisi_datume():
     datumi = []
     for i in range(BROJ_DANA):
         dan = start + timedelta(days=i)
-        datumi.append(dan.strftime("%Y-%m-%d"))
+        # 🔥 Nedelja se NE dodaje u listu (preskačemo)
+        if dan.weekday() != 6:
+            datumi.append(dan.strftime("%Y-%m-%d"))
     return datumi
 
 def generisi_slotove_za_dan(datum_str):
     dan = datetime.strptime(datum_str, "%Y-%m-%d")
+    
+    # 🔥 NEDELJA - NERADNA
     if dan.weekday() == 6:
         return
     
@@ -164,7 +168,7 @@ def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
     if trajanje % INTERVAL_MIN != 0:
         broj_slotova += 1
     
-    # 🔥 Dohvati SVE slotove od početka (ne samo prazne)
+    # Dohvati SVE slotove od početka (ne samo prazne)
     c.execute("""
         SELECT vreme, ime FROM rezervacije 
         WHERE datum=? AND vreme >= ? 
@@ -173,7 +177,7 @@ def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
     
     slotovi = c.fetchall()
     
-    # 🔥 Provera: da li ima dovoljno slotova i da li su svi prazni?
+    # Provera: da li ima dovoljno slotova i da li su svi prazni?
     if len(slotovi) < broj_slotova:
         conn.close()
         return False
@@ -192,7 +196,7 @@ def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
             conn.close()
             return False
     
-    # 🔥 Ažuriraj sve slotove
+    # Ažuriraj sve slotove
     for vreme in vremena:
         c.execute("SELECT id FROM rezervacije WHERE datum=? AND vreme=?", (datum, vreme))
         id = c.fetchone()[0]
@@ -286,6 +290,7 @@ with tab1:
                     st.warning("⏳ Nema slobodnih termina za izabrani datum.")
         else:
             st.error("❌ Baza je prazna.")
+
 with tab2:
     if "admin" not in st.session_state:
         st.session_state.admin = False
@@ -318,7 +323,7 @@ with tab2:
         c = conn.cursor()
         today = datetime.now().strftime("%Y-%m-%d")
         
-        # 🔥 BROJ JEDINSTVENIH KLIJENATA DANAS
+        # BROJ JEDINSTVENIH KLIJENATA DANAS
         c.execute("""
             SELECT COUNT(DISTINCT ime || '|' || telefon || '|' || datum || '|' || usluga) 
             FROM rezervacije 
@@ -326,7 +331,7 @@ with tab2:
         """, (today,))
         danas_klijenata = c.fetchone()[0] or 0
         
-        # 🔥 BROJ NENAPLACENIH SLOTOVA (ukupno)
+        # BROJ NENAPLACENIH SLOTOVA
         c.execute("SELECT COUNT(*) FROM rezervacije WHERE ime IS NOT NULL AND (naplaceno IS NULL OR naplaceno=0)")
         nenaplaceno = c.fetchone()[0] or 0
         
