@@ -38,10 +38,6 @@ st.markdown("""
     .stSelectbox label, .stTextInput label, .stNumberInput label {
         color: #d0d0d0 !important;
     }
-    .stSelectbox div[data-baseweb="select"] > div {
-        background-color: #3a3a3a !important;
-        color: #ffffff !important;
-    }
     .form-container {
         border: 2px solid #d4af37;
         border-radius: 16px;
@@ -74,7 +70,7 @@ st.markdown("""
         box-shadow: 0 4px 16px rgba(212, 175, 55, 0.3);
         transform: scale(1.002);
     }
-    .slot-slobodan {
+    .slot-zeleni {
         background-color: #2a7a2a !important;
         color: white !important;
         border: 1px solid #4ac24a !important;
@@ -85,11 +81,11 @@ st.markdown("""
         transition: 0.2s;
         cursor: pointer;
     }
-    .slot-slobodan:hover {
+    .slot-zeleni:hover {
         background-color: #3a9a3a !important;
         transform: scale(1.02);
     }
-    .slot-zauzet {
+    .slot-crveni {
         background-color: #7a2a2a !important;
         color: #aaaaaa !important;
         border: 1px solid #aa4a4a !important;
@@ -100,7 +96,7 @@ st.markdown("""
         cursor: not-allowed !important;
         opacity: 0.7;
     }
-    .slot-nedovoljno {
+    .slot-sivi {
         background-color: #5a4a3a !important;
         color: #888888 !important;
         border: 1px solid #6a5a4a !important;
@@ -188,6 +184,7 @@ def generisi_slotove_za_dan(datum_str):
     conn = sqlite3.connect('termini.db')
     c = conn.cursor()
     
+    # Brišemo sve slotove za taj dan (i prazne i zauzete)
     c.execute("DELETE FROM rezervacije WHERE datum=?", (datum_str,))
     
     sat_start, min_start = RADNO_VREME[0]
@@ -306,6 +303,7 @@ def prikazi_tabelu_termina(datum, usluga_trajanje, mode="klijent"):
         st.warning("⏳ Nema slobodnih termina za izabrani datum.")
         return None
     
+    # Uklanjamo duple slotove
     jedinstveni = {}
     for vreme, ime in svi_slotovi:
         if vreme not in jedinstveni:
@@ -329,13 +327,13 @@ def prikazi_tabelu_termina(datum, usluga_trajanje, mode="klijent"):
                             kliknuto_vreme = vreme
                     else:
                         st.markdown(f"""
-                        <div class="slot-nedovoljno" style="text-align:center; padding:8px 0; border-radius:8px;">
+                        <div class="slot-sivi" style="text-align:center; padding:8px 0; border-radius:8px;">
                             {vreme}
                         </div>
                         """, unsafe_allow_html=True)
                 else:
                     st.markdown(f"""
-                    <div class="slot-zauzet" style="text-align:center; padding:8px 0; border-radius:8px;">
+                    <div class="slot-crveni" style="text-align:center; padding:8px 0; border-radius:8px;">
                         🔴 {vreme}
                     </div>
                     """, unsafe_allow_html=True)
@@ -410,20 +408,23 @@ with tab1:
             kliknuto_vreme = prikazi_tabelu_termina(datum, usluga_trajanje, mode="klijent")
             
             if kliknuto_vreme:
-                if rezervisi_blok(datum, kliknuto_vreme, usluga_trajanje, ime, tel, usluga_ime, usluga_cena):
-                    st.session_state['booking_success'] = True
-                    st.session_state['booking_details'] = {
-                        'usluga': usluga_ime,
-                        'datum': datum,
-                        'vreme': kliknuto_vreme,
-                        'trajanje': usluga_trajanje,
-                        'cena': usluga_cena,
-                        'ime': ime
-                    }
-                    st.rerun()
+                if ime and tel:
+                    if rezervisi_blok(datum, kliknuto_vreme, usluga_trajanje, ime, tel, usluga_ime, usluga_cena):
+                        st.session_state['booking_success'] = True
+                        st.session_state['booking_details'] = {
+                            'usluga': usluga_ime,
+                            'datum': datum,
+                            'vreme': kliknuto_vreme,
+                            'trajanje': usluga_trajanje,
+                            'cena': usluga_cena,
+                            'ime': ime
+                        }
+                        st.rerun()
+                    else:
+                        st.error("❌ Greška pri rezervaciji. Pokušajte ponovo.")
+                        st.rerun()
                 else:
-                    st.error("❌ Greška pri rezervaciji. Pokušajte ponovo.")
-                    st.rerun()
+                    st.warning("⚠️ Popunite ime i telefon pre nego što kliknete na termin.")
             
             st.markdown('</div>', unsafe_allow_html=True)
         else:
