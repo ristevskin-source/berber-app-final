@@ -660,7 +660,7 @@ with tab2:
         c.execute("SELECT usluga, cena, trajanje FROM cenovnik ORDER BY usluga")
         sve_usluge = c.fetchall()
         conn.close()
-        
+    
         if sve_usluge:
             for usluga, cena, trajanje in sve_usluge:
                 col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
