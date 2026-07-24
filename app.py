@@ -3,21 +3,17 @@ import psycopg2
 import os
 from datetime import datetime, timedelta
 
-# ---------- KONFIGURACIJA ----------
 RADNO_VREME = [(9,0), (20,0)]
 INTERVAL_MIN = 15
 BROJ_DANA = 7
 PAUZA_POCETAK = 12
 PAUZA_KRAJ = 13
 
-# ---------- POSTGRESQL VEZA ----------
-# 🔥 OVDE NALEPI SVOJ CONNECTION STRING
-DATABASE_URL = "postgresql://postgres.ilmgdtpusrlexlvjiotx:tatarista1199111@aws-0-eu-west-1.pooler.supabase.com:5432/postgres"
+DATABASE_URL = "postgresql://postgres:TVOJA_LOZINKA@db.TVOJ_ID.supabase.co:5432/postgres"
 
 def get_db():
     return psycopg2.connect(DATABASE_URL)
 
-# ---------- INICIJALIZACIJA BAZE ----------
 def init_db():
     conn = get_db()
     c = conn.cursor()
@@ -67,7 +63,6 @@ def init_db():
 
 init_db()
 
-# ---------- POMOĆNE FUNKCIJE ----------
 def formatiraj_datum(datum_str):
     dan = datetime.strptime(datum_str, "%Y-%m-%d")
     dani_u_nedelji = ["Ponedeljak", "Utorak", "Sreda", "Četvrtak", "Petak", "Subota", "Nedelja"]
@@ -307,21 +302,6 @@ with tab2:
                     st.error("❌ Greška pri generisanju slotova.")
                     st.rerun()
         
-        st.divider()
-        
-        # 🔥 DEBUG
-        st.subheader("🔍 DEBUG - Svi podaci iz baze")
-        conn = get_db()
-        c = conn.cursor()
-        c.execute("SELECT * FROM rezervacije ORDER BY datum, vreme")
-        svi = c.fetchall()
-        if svi:
-            st.write("📋 Svi redovi u bazi:")
-            for red in svi:
-                st.write(red)
-        else:
-            st.info("📭 Baza je prazna.")
-        conn.close()
         st.divider()
         
         conn = get_db()
