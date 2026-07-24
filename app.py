@@ -224,7 +224,6 @@ def dovoljno_slobodnih_slotova(datum, pocetak, trajanje):
     conn = sqlite3.connect('termini.db')
     c = conn.cursor()
     
-    # Dohvati sve slobodne slotove od početka
     c.execute("""
         SELECT vreme FROM rezervacije 
         WHERE datum=? AND vreme >= ? AND ime IS NULL 
@@ -234,7 +233,6 @@ def dovoljno_slobodnih_slotova(datum, pocetak, trajanje):
     slobodni = [row[0] for row in c.fetchall()]
     conn.close()
     
-    # Proveri da li ima dovoljno uzastopnih slotova
     if len(slobodni) < broj_slotova:
         return False
     
@@ -293,6 +291,10 @@ def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
     return True
 
 def prikazi_tabelu_termina(datum, usluga_trajanje):
+    """
+    Prikazuje tabelu slotova sa bojama.
+    Ako usluga_trajanje == 0, prikazuje sve slotove kao zelene (bez provere).
+    """
     conn = sqlite3.connect('termini.db')
     c = conn.cursor()
     c.execute("""
@@ -325,19 +327,21 @@ def prikazi_tabelu_termina(datum, usluga_trajanje):
         for j, (vreme, ime_slota) in enumerate(row):
             with cols[j]:
                 if ime_slota is None:
-                    if dovoljno_slobodnih_slotova(datum, vreme, usluga_trajanje):
-                        # ZELENI - slobodan i dovoljno dug
+                    # 🔥 Ako usluga nije izabrana (trajanje = 0) - svi su zeleni
+                    if usluga_trajanje == 0:
                         if st.button(f"🟢 {vreme}", key=f"slot_{datum}_{vreme}", use_container_width=True):
                             kliknuto_vreme = vreme
                     else:
-                        # ŽUTI - slobodan ali nedovoljno dug
-                        st.markdown(f"""
-                        <div class="slot-zuti" style="text-align:center; padding:8px 0; border-radius:8px;">
-                            🟡 {vreme}
-                        </div>
-                        """, unsafe_allow_html=True)
+                        if dovoljno_slobodnih_slotova(datum, vreme, usluga_trajanje):
+                            if st.button(f"🟢 {vreme}", key=f"slot_{datum}_{vreme}", use_container_width=True):
+                                kliknuto_vreme = vreme
+                        else:
+                            st.markdown(f"""
+                            <div class="slot-zuti" style="text-align:center; padding:8px 0; border-radius:8px;">
+                                🟡 {vreme}
+                            </div>
+                            """, unsafe_allow_html=True)
                 else:
-                    # CRVENI - zauzet
                     st.markdown(f"""
                     <div class="slot-crveni" style="text-align:center; padding:8px 0; border-radius:8px;">
                         🔴 {vreme}
@@ -422,11 +426,15 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
             
-            kliknuto_vreme = prikazi_tabelu_termina(datum, usluga_trajanje)
+            # 🔥 Prikazujemo tabelu TEK nakon što je usluga izabrana
+            if usluga_trajanje > 0:
+                kliknuto_vreme = prikazi_tabelu_termina(datum, usluga_trajanje)
+            else:
+                st.info("📌 Izaberite uslugu da biste videli slobodne termine.")
+                kliknuto_vreme = None
             
             if kliknuto_vreme:
                 if ime and tel:
-                    # Provera je već urađena u prikazu, ali dodatno proveravamo
                     if dovoljno_slobodnih_slotova(datum, kliknuto_vreme, usluga_trajanje):
                         if rezervisi_blok(datum, kliknuto_vreme, usluga_trajanje, ime, tel, usluga_ime, usluga_cena):
                             st.session_state['booking_success'] = True
