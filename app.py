@@ -662,4 +662,4 @@ with tab2:
                         st.success(f"✅ Usluga {usluga} ažurirana!")
                         st.rerun()
         else:
-            st.info("📭 Trenutno nema definisanih usluga.")
+            st.info("📭 Trenutno nema definisanih usluga.") 
