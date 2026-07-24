@@ -323,7 +323,6 @@ def prikazi_tabelu_termina(datum, usluga_trajanje):
         for j, (vreme, ime_slota) in enumerate(row):
             with cols[j]:
                 if ime_slota is None:
-                    # Ako usluga NIJE izabrana - svi slobodni su zeleni
                     if usluga_trajanje == 0:
                         if st.button(f"🟢 {vreme}", key=f"slot_{datum}_{vreme}", use_container_width=True):
                             kliknuto_vreme = vreme
@@ -413,7 +412,6 @@ with tab1:
             
             st.subheader("📋 Slobodni termini")
             
-            # Legenda
             st.markdown("""
             <div style="display: flex; gap: 10px; margin: 5px 0; font-size: 0.9em;">
                 <span>🟢 <span style="color: #aaa;">Slobodan i dovoljno dug</span></span>
@@ -422,7 +420,6 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
             
-            # 🔥 PRIKAZ TABELE SAMO AKO JE USLUGA IZABRANA
             if usluga_trajanje > 0:
                 kliknuto_vreme = prikazi_tabelu_termina(datum, usluga_trajanje)
             else:
@@ -660,7 +657,7 @@ with tab2:
         c.execute("SELECT usluga, cena, trajanje FROM cenovnik ORDER BY usluga")
         sve_usluge = c.fetchall()
         conn.close()
-    
+        
         if sve_usluge:
             for usluga, cena, trajanje in sve_usluge:
                 col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
