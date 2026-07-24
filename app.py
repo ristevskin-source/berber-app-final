@@ -96,10 +96,10 @@ st.markdown("""
         cursor: not-allowed !important;
         opacity: 0.7;
     }
-    .slot-sivi {
-        background-color: #5a4a3a !important;
-        color: #888888 !important;
-        border: 1px solid #6a5a4a !important;
+    .slot-zuti {
+        background-color: #7a7a2a !important;
+        color: #cccccc !important;
+        border: 1px solid #aaaa4a !important;
         border-radius: 8px !important;
         padding: 8px 0 !important;
         width: 100% !important;
@@ -320,15 +320,18 @@ def prikazi_tabelu_termina(datum, usluga_trajanje):
             with cols[j]:
                 if ime_slota is None:
                     if dovoljno_slobodnih_slotova(datum, vreme, usluga_trajanje):
+                        # 🔥 ZELENI - slobodan i dovoljno dug
                         if st.button(f"🟢 {vreme}", key=f"slot_{datum}_{vreme}", use_container_width=True):
                             kliknuto_vreme = vreme
                     else:
+                        # 🔥 ŽUTI - slobodan ali nedovoljno dug
                         st.markdown(f"""
-                        <div class="slot-sivi" style="text-align:center; padding:8px 0; border-radius:8px;">
-                            {vreme}
+                        <div class="slot-zuti" style="text-align:center; padding:8px 0; border-radius:8px;">
+                            🟡 {vreme}
                         </div>
                         """, unsafe_allow_html=True)
                 else:
+                    # 🔴 CRVENI - zauzet
                     st.markdown(f"""
                     <div class="slot-crveni" style="text-align:center; padding:8px 0; border-radius:8px;">
                         🔴 {vreme}
@@ -403,6 +406,14 @@ with tab1:
             datum = st.selectbox("Datum", datumi_raw, format_func=formatiraj_datum)
             
             st.subheader("📋 Slobodni termini")
+            
+            st.markdown("""
+            <div style="display: flex; gap: 10px; margin: 5px 0; font-size: 0.9em;">
+                <span>🟢 <span style="color: #aaa;">Slobodan i dovoljno dug</span></span>
+                <span>🟡 <span style="color: #aaa;">Slobodan, ali nedovoljno dug</span></span>
+                <span>🔴 <span style="color: #aaa;">Zauzet</span></span>
+            </div>
+            """, unsafe_allow_html=True)
             
             kliknuto_vreme = prikazi_tabelu_termina(datum, usluga_trajanje)
             
