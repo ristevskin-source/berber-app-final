@@ -241,24 +241,20 @@ def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
     if trajanje % INTERVAL_MIN != 0:
         broj_slotova += 1
     
+    # 🔥 DOHVATI VREMENA SLOTOVA (ne ID-eve)
     c.execute("""
-        SELECT vreme, ime FROM rezervacije 
-        WHERE datum=? AND vreme >= ? 
+        SELECT vreme FROM rezervacije 
+        WHERE datum=? AND vreme >= ? AND ime IS NULL 
         ORDER BY vreme ASC LIMIT ?
     """, (datum, pocetak, broj_slotova))
     
-    slotovi = c.fetchall()
+    vremena = [row[0] for row in c.fetchall()]
     
-    if len(slotovi) < broj_slotova:
+    if len(vremena) < broj_slotova:
         conn.close()
         return False
     
-    for vreme, ime_slota in slotovi:
-        if ime_slota is not None:
-            conn.close()
-            return False
-    
-    vremena = [row[0] for row in slotovi]
+    # Provera uzastopnosti
     for i in range(broj_slotova - 1):
         t1 = datetime.strptime(vremena[i], "%H:%M")
         t2 = datetime.strptime(vremena[i+1], "%H:%M")
@@ -266,24 +262,27 @@ def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
             conn.close()
             return False
     
+    # 🔥 DIREKTAN UPDATE PO VREMENU (bez ID-eva)
     for vreme in vremena:
-        c.execute("SELECT id FROM rezervacije WHERE datum=? AND vreme=?", (datum, vreme))
-        id = c.fetchone()[0]
         c.execute("""
             UPDATE rezervacije 
             SET ime=?, telefon=?, usluga=?, cena=?, naplaceno=0 
-            WHERE id=?
-        """, (ime, telefon, usluga, cena, id))
+            WHERE datum=? AND vreme=?
+        """, (ime, telefon, usluga, cena, datum, vreme))
     
     conn.commit()
     conn.close()
-    return True
+    
+    # Provera
+    conn2 = sqlite3.connect('termini.db')
+    c2 = conn2.cursor()
+    c2.execute("SELECT COUNT(*) FROM rezervacije WHERE ime=? AND datum=? AND vreme=?", (ime, datum, pocetak))
+    count = c2.fetchone()[0]
+    conn2.close()
+    
+    return count > 0
 
 def prikazi_tabelu_termina(datum, usluga_trajanje):
-    """
-    Prikazuje tabelu slotova - SAMO ZELENE (slobodne) i CRVENE (zauzete).
-    NEMA ŽUTIH.
-    """
     conn = sqlite3.connect('termini.db')
     c = conn.cursor()
     c.execute("""
@@ -316,7 +315,6 @@ def prikazi_tabelu_termina(datum, usluga_trajanje):
         for j, (vreme, ime_slota) in enumerate(row):
             with cols[j]:
                 if ime_slota is None:
-                    # 🔥 SVI SLOBODNI SLOTOVI SU ZELENI (bez provere)
                     if st.button(f"🟢 {vreme}", key=f"slot_{datum}_{vreme}", use_container_width=True):
                         kliknuto_vreme = vreme
                 else:
@@ -395,7 +393,6 @@ with tab1:
             
             st.subheader("📋 Slobodni termini")
             
-            # Legenda (samo zeleno i crveno)
             st.markdown("""
             <div style="display: flex; gap: 10px; margin: 5px 0; font-size: 0.9em;">
                 <span>🟢 <span style="color: #aaa;">Slobodan termin</span></span>
@@ -403,7 +400,6 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
             
-            # 🔥 Prikazujemo tabelu SAMO ako je usluga izabrana
             if usluga_trajanje > 0:
                 kliknuto_vreme = prikazi_tabelu_termina(datum, usluga_trajanje)
             else:
@@ -412,7 +408,6 @@ with tab1:
             
             if kliknuto_vreme:
                 if ime and tel:
-                    # 🔥 PROVERA TEK NAKON KLIKA
                     if dovoljno_slobodnih_slotova(datum, kliknuto_vreme, usluga_trajanje):
                         if rezervisi_blok(datum, kliknuto_vreme, usluga_trajanje, ime, tel, usluga_ime, usluga_cena):
                             st.session_state['booking_success'] = True
