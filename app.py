@@ -210,7 +210,7 @@ def generisi_slotove_za_dan(datum_str):
         conn.commit()
     conn.close()
 
-def osvezi_termine():
+def
     datumi = generisi_datume()
     for d in datumi:
         generisi_slotove_za_dan(d)
@@ -220,7 +220,7 @@ def dovoljno_slobodnih_slotova(datum, pocetak, trajanje):
     if trajanje % INTERVAL_MIN != 0:
         broj_slotova += 1
     
-    conn = sqlite3.connect('termini.db')
+    conn = sqlite3.connect
     c = conn.cursor()
     c.execute("""
         SELECT vreme FROM rezervacije 
