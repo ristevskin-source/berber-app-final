@@ -184,7 +184,7 @@ def generisi_slotove_za_dan(datum_str):
     conn = sqlite3.connect('termini.db')
     c = conn.cursor()
     
-    c.execute("DELETE FROM rezervacije WHERE datum=? AND ime IS NULL", (datum_str,))
+    c.execute("DELETE FROM rezervacije WHERE datum=?", (datum_str,))
     
     sat_start, min_start = RADNO_VREME[0]
     sat_kraj, min_kraj = RADNO_VREME[1]
@@ -210,7 +210,7 @@ def generisi_slotove_za_dan(datum_str):
         conn.commit()
     conn.close()
 
-def
+def osvezi_termine():
     datumi = generisi_datume()
     for d in datumi:
         generisi_slotove_za_dan(d)
@@ -220,7 +220,7 @@ def dovoljno_slobodnih_slotova(datum, pocetak, trajanje):
     if trajanje % INTERVAL_MIN != 0:
         broj_slotova += 1
     
-    conn = sqlite3.connect
+    conn = sqlite3.connect('termini.db')
     c = conn.cursor()
     c.execute("""
         SELECT vreme FROM rezervacije 
@@ -286,7 +286,6 @@ def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
     conn.close()
     return True
 
-# ---------- FUNKCIJA ZA PRIKAZ TABELE TERMINA ----------
 def prikazi_tabelu_termina(datum, usluga_trajanje):
     conn = sqlite3.connect('termini.db')
     c = conn.cursor()
@@ -342,7 +341,9 @@ def prikazi_tabelu_termina(datum, usluga_trajanje):
 st.set_page_config(page_title="💈 Zakazivanje", layout="centered")
 
 try:
-    st.image("IMG-7dca0f9a0a28a9b8098a0cf36f04adb2-V.jpg", use_container_width=True)
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.image("IMG-7dca0f9a0a28a9b8098a0cf36f04adb2-V.jpg", use_column_width=True)
 except:
     st.info("🖼️ Logo nije učitan, ali aplikacija radi.")
 
