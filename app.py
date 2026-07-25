@@ -68,14 +68,58 @@ def generisi_datume():
             datumi.append(dan.strftime("%Y-%m-%d"))
     return datumi
 
-def generisi_slotove_za_dan(datum_str):
-    dan = datetime.strptime(datum_str, "%Y-%m-%d")
-    if dan.weekday() == 6:
+def sacuvaj_rezervacije_pre_osvezavanja(datum):
+    """Čuva postojeće rezervacije pre regenerisanja slotova"""
+    conn = sqlite3.connect('termini.db')
+    c = conn.cursor()
+    
+    # Sačuvaj sve ZAUZETE termine (one sa imenom)
+    c.execute("""
+        SELECT usluga, datum, vreme, ime, telefon, cena, naplaceno, datum_naplate 
+        FROM rezervacije 
+        WHERE datum=? AND ime IS NOT NULL AND ime != ''
+    """, (datum,))
+    rezervacije = c.fetchall()
+    conn.close()
+    
+    return rezervacije
+
+def vrati_rezervacije_posle_osvezavanja(datum, rezervacije):
+    """Vraća sačuvane rezervacije nakon regenerisanja"""
+    if not rezervacije:
         return
     
     conn = sqlite3.connect('termini.db')
     c = conn.cursor()
     
+    for usluga, datum, vreme, ime, telefon, cena, naplaceno, datum_naplate in rezervacije:
+        # Pronađi ID slota sa tim vremenom
+        c.execute("SELECT id FROM rezervacije WHERE datum=? AND vreme=? AND ime IS NULL", (datum, vreme))
+        result = c.fetchone()
+        if result:
+            slot_id = result[0]
+            # Ažuriraj slot sa podacima o rezervaciji
+            c.execute("""
+                UPDATE rezervacije 
+                SET usluga=?, ime=?, telefon=?, cena=?, naplaceno=?, datum_naplate=?
+                WHERE id=?
+            """, (usluga, ime, telefon, cena, naplaceno, datum_naplate, slot_id))
+    
+    conn.commit()
+    conn.close()
+
+def generisi_slotove_za_dan(datum_str):
+    dan = datetime.strptime(datum_str, "%Y-%m-%d")
+    if dan.weekday() == 6:
+        return
+    
+    # SAČUVAJ POSTOJEĆE REZERVACIJE PRE BRISANJA
+    rezervacije = sacuvaj_rezervacije_pre_osvezavanja(datum_str)
+    
+    conn = sqlite3.connect('termini.db')
+    c = conn.cursor()
+    
+    # OBRISI SAMO SLOBODNE SLOTOVE (one bez imena)
     c.execute("DELETE FROM rezervacije WHERE datum=? AND ime IS NULL", (datum_str,))
     
     sat_start, min_start = RADNO_VREME[0]
@@ -101,6 +145,10 @@ def generisi_slotove_za_dan(datum_str):
         c.executemany("INSERT INTO rezervacije (usluga, datum, vreme, ime, telefon, cena, naplaceno, datum_naplate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", slotovi)
         conn.commit()
     conn.close()
+    
+    # VRATI SAČUVANE REZERVACIJE
+    if rezervacije:
+        vrati_rezervacije_posle_osvezavanja(datum_str, rezervacije)
 
 def osvezi_termine():
     datumi = generisi_datume()
