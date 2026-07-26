@@ -402,7 +402,7 @@ with tab1:
                                 'datum': datum,
                                 'vreme': kliknuto_vreme,
                                 'trajanje': usluga_trajanje,
-                                'cena': usluga_cena,
+                                'cena': usluga_cena
                                 'ime': ime
                             }
                             st.rerun()
