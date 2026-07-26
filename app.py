@@ -73,7 +73,6 @@ def sacuvaj_rezervacije_pre_osvezavanja(datum):
     conn = sqlite3.connect('termini.db')
     c = conn.cursor()
     
-    # Sačuvaj sve ZAUZETE termine (one sa imenom)
     c.execute("""
         SELECT usluga, datum, vreme, ime, telefon, cena, naplaceno, datum_naplate 
         FROM rezervacije 
@@ -93,12 +92,10 @@ def vrati_rezervacije_posle_osvezavanja(datum, rezervacije):
     c = conn.cursor()
     
     for usluga, datum, vreme, ime, telefon, cena, naplaceno, datum_naplate in rezervacije:
-        # Pronađi ID slota sa tim vremenom
         c.execute("SELECT id FROM rezervacije WHERE datum=? AND vreme=? AND ime IS NULL", (datum, vreme))
         result = c.fetchone()
         if result:
             slot_id = result[0]
-            # Ažuriraj slot sa podacima o rezervaciji
             c.execute("""
                 UPDATE rezervacije 
                 SET usluga=?, ime=?, telefon=?, cena=?, naplaceno=?, datum_naplate=?
@@ -113,13 +110,11 @@ def generisi_slotove_za_dan(datum_str):
     if dan.weekday() == 6:
         return
     
-    # SAČUVAJ POSTOJEĆE REZERVACIJE PRE BRISANJA
     rezervacije = sacuvaj_rezervacije_pre_osvezavanja(datum_str)
     
     conn = sqlite3.connect('termini.db')
     c = conn.cursor()
     
-    # OBRISI SAMO SLOBODNE SLOTOVE (one bez imena)
     c.execute("DELETE FROM rezervacije WHERE datum=? AND ime IS NULL", (datum_str,))
     
     sat_start, min_start = RADNO_VREME[0]
@@ -146,7 +141,6 @@ def generisi_slotove_za_dan(datum_str):
         conn.commit()
     conn.close()
     
-    # VRATI SAČUVANE REZERVACIJE
     if rezervacije:
         vrati_rezervacije_posle_osvezavanja(datum_str, rezervacije)
 
@@ -157,14 +151,10 @@ def osvezi_termine():
     return True
 
 def dovoljno_slobodnih_slotova(datum, pocetak, trajanje):
-    """Proverava da li ima dovoljno SLOBODNIH i NEPREKLAPAJUCIH slotova"""
-    
-    # Koliko slotova treba
     broj_slotova = trajanje // INTERVAL_MIN
     if trajanje % INTERVAL_MIN != 0:
         broj_slotova += 1
     
-    # Izračunaj krajnje vreme
     pocetak_dt = datetime.strptime(pocetak, "%H:%M")
     kraj_dt = pocetak_dt + timedelta(minutes=trajanje)
     kraj = kraj_dt.strftime("%H:%M")
@@ -172,18 +162,14 @@ def dovoljno_slobodnih_slotova(datum, pocetak, trajanje):
     conn = sqlite3.connect('termini.db')
     c = conn.cursor()
     
-    # 1. Proveri sve ZAUZETE termine na taj dan
     c.execute("""
         SELECT vreme, usluga FROM rezervacije 
         WHERE datum=? AND ime IS NOT NULL AND ime != ''
     """, (datum,))
     zauzeti = c.fetchall()
     
-    # 2. Proveri da li se novi termin preklapa SA BILO KOJIM zauzetim
     for zauzet_vreme, zauzeta_usluga in zauzeti:
         zauzet_dt = datetime.strptime(zauzet_vreme, "%H:%M")
-        
-        # Uzmi trajanje zauzete usluge
         c.execute("SELECT trajanje FROM cenovnik WHERE usluga=?", (zauzeta_usluga,))
         result = c.fetchone()
         
@@ -191,13 +177,10 @@ def dovoljno_slobodnih_slotova(datum, pocetak, trajanje):
             zauzet_trajanje = result[0]
             zauzet_kraj_dt = zauzet_dt + timedelta(minutes=zauzet_trajanje)
             
-            # Provera preklapanja:
-            # Novi termin se preklapa ako njegov početak ili kraj pada unutar zauzetog intervala
             if not (kraj_dt <= zauzet_dt or pocetak_dt >= zauzet_kraj_dt):
                 conn.close()
-                return False  # IMA PREKLAPANJA!
+                return False
     
-    # 3. Proveri da li ima dovoljno SLOBODNIH slotova
     c.execute("""
         SELECT vreme FROM rezervacije 
         WHERE datum=? AND vreme >= ? AND vreme < ? AND ime IS NULL 
@@ -206,11 +189,9 @@ def dovoljno_slobodnih_slotova(datum, pocetak, trajanje):
     slobodni = [row[0] for row in c.fetchall()]
     conn.close()
     
-    # Mora da ima tačno onoliko slotova koliko treba
     if len(slobodni) < broj_slotova:
         return False
     
-    # Proveri da li su slotovi uzastopni
     for i in range(broj_slotova - 1):
         t1 = datetime.strptime(slobodni[i], "%H:%M")
         t2 = datetime.strptime(slobodni[i+1], "%H:%M")
@@ -258,7 +239,6 @@ def rezervisi_blok(datum, pocetak, trajanje, ime, telefon, usluga, cena):
     return count > 0
 
 def prikazi_tabelu_termina(datum, usluga_trajanje, mode="klijent"):
-    """Prikazuje tabelu slotova - za klijenta ili admina"""
     conn = sqlite3.connect('termini.db')
     c = conn.cursor()
     
@@ -313,27 +293,108 @@ def prikazi_tabelu_termina(datum, usluga_trajanje, mode="klijent"):
 # ---------- UI ----------
 st.title("💈 Berberski salon - Zakazivanje")
 
-# DUGME ZA DELJENJE
-st.markdown("""
-    <div style="display: flex; justify-content: center; margin: 10px 0 20px 0;">
-        <a href="https://berber-app-cist.streamlit.app" target="_blank" 
-           style="background-color: #d4af37; 
-                  color: #4a2c1a; 
-                  padding: 12px 30px; 
-                  border-radius: 8px; 
-                  text-decoration: none; 
-                  font-weight: bold; 
-                  font-size: 18px;
-                  border: 2px solid #b8960a;
-                  box-shadow: 0 4px 8px rgba(0,0,0,0.3);">
-            📤 Podeli link klijentima
-        </a>
-    </div>
-""", unsafe_allow_html=True)
+# DUGME ZA DELJENJE (Streamlit link_button)
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    st.link_button(
+        "📤 Podeli link klijentima",
+        "https://berber-app-cist.streamlit.app",
+        help="Kliknite da kopirate link za zakazivanje",
+        use_container_width=True
+    )
 
 st.divider()
 
 tab1, tab2 = st.tabs(["📅 Zakazivanje", "🔑 Admin Panel"])
+
+with tab1:
+    if 'booking_success' not in st.session_state:
+        st.session_state['booking_success'] = False
+
+    if st.session_state['booking_success']:
+        detalji = st.session_state['booking_details']
+        st.balloons()
+        st.markdown(f"""
+        <div style="background-color: #3a3a3a; padding: 20px; border-radius: 15px; border-left: 6px solid #d4af37; box-shadow: 0 4px 12px rgba(0,0,0,0.5); margin: 20px 0;">
+            <h2 style="color: #d4af37; margin:0;">✅ Uspešno ste zakazali!</h2>
+            <p><strong>Usluga:</strong> {detalji['usluga']}</p>
+            <p><strong>Datum:</strong> {formatiraj_datum(detalji['datum'])}</p>
+            <p><strong>Vreme:</strong> {detalji['vreme']}</p>
+            <p><strong>Trajanje:</strong> {detalji['trajanje']} min</p>
+            <p><strong>Cena:</strong> {detalji['cena']} din</p>
+            <p><strong>Klijent:</strong> {detalji['ime']}</p>
+            <p style="margin-top:15px; font-size:1.2em; color:#d4af37;">✂️ Vidimo se!</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("📅 Zakaži novi termin"):
+            st.session_state['booking_success'] = False
+            st.rerun()
+    else:
+        conn = sqlite3.connect('termini.db')
+        c = conn.cursor()
+        datumi_raw = generisi_datume()
+        c.execute("SELECT usluga, cena, trajanje FROM cenovnik ORDER BY trajanje ASC")
+        usluge = c.fetchall()
+        conn.close()
+        
+        if datumi_raw and usluge:
+            osvezi_termine()
+            
+            ime = st.text_input("Ime i prezime *")
+            tel = st.text_input("Telefon *")
+            
+            usluga_opcije = [f"{u[0]} ({u[2]} min, {u[1]} din)" for u in usluge]
+            izabrana = st.selectbox("Usluga", usluga_opcije)
+            
+            idx = usluga_opcije.index(izabrana) if izabrana in usluga_opcije else 0
+            usluga_ime = usluge[idx][0]
+            usluga_cena = usluge[idx][1]
+            usluga_trajanje = usluge[idx][2]
+            
+            datum = st.selectbox("Datum", datumi_raw, format_func=formatiraj_datum)
+            
+            st.subheader("📋 Slobodni termini")
+            
+            st.markdown("""
+            <div style="display: flex; gap: 10px; margin: 5px 0; font-size: 0.9em;">
+                <span>🟢 <span style="color: #aaa;">Slobodan termin</span></span>
+                <span>🔴 <span style="color: #aaa;">Zauzet termin</span></span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Proveri da li su sva polja popunjena
+            sva_polja_popunjena = ime and tel and ime.strip() and tel.strip()
+            
+            if not sva_polja_popunjena:
+                st.warning("⚠️ Popunite sva polja (Ime, Telefon, Usluga, Datum) pre nego što kliknete na termin.")
+            
+            kliknuto_vreme = prikazi_tabelu_termina(datum, usluga_trajanje, mode="klijent")
+            
+            if kliknuto_vreme:
+                if sva_polja_popunjena:
+                    if dovoljno_slobodnih_slotova(datum, kliknuto_vreme, usluga_trajanje):
+                        if rezervisi_blok(datum, kliknuto_vreme, usluga_trajanje, ime, tel, usluga_ime, usluga_cena):
+                            st.session_state['booking_success'] = True
+                            st.session_state['booking_details'] = {
+                                'usluga': usluga_ime,
+                                'datum': datum,
+                                'vreme': kliknuto_vreme,
+                                'trajanje': usluga_trajanje,
+                                'cena': usluga_cena,
+                                'ime': ime
+                            }
+                            st.rerun()
+                        else:
+                            st.error("❌ Greška pri rezervaciji. Pokušajte ponovo.")
+                            st.rerun()
+                    else:
+                        st.error("❌ Nema dovoljno slobodnih termina za ovu uslugu u izabrano vreme.")
+                        st.rerun()
+                else:
+                    st.error("❌ Popunite sva polja pre nego što kliknete na termin.")
+                    st.rerun()
+        else:
+            st.error("❌ Baza je prazna.")
 
 with tab2:
     if "admin" not in st.session_state:
@@ -447,7 +508,7 @@ with tab2:
             FROM rezervacije 
             WHERE ime IS NOT NULL 
             GROUP BY ime, telefon, datum, usluga, cena
-            ORDER BY datum ASC, pocetak ASC
+            ORDER BY datum || ' ' || MIN(vreme) ASC
         """)
         grupe = c.fetchall()
         conn.close()
