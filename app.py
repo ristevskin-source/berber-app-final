@@ -311,7 +311,7 @@ def prikazi_tabelu_termina(datum, usluga_trajanje, mode="klijent"):
     return kliknuto_vreme
 
 # ---------- UI ----------
-st.title("💈 Berberski salon - Zakazivanje"
+st.title("💈 Berberski salon - Zakazivanje")
 
 # DUGME ZA DELJENJE
 st.markdown("""
