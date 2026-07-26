@@ -311,7 +311,27 @@ def prikazi_tabelu_termina(datum, usluga_trajanje, mode="klijent"):
     return kliknuto_vreme
 
 # ---------- UI ----------
-st.title("💈 Berberski salon - Zakazivanje")
+st.title("💈 Berberski salon - Zakazivanje"
+
+# DUGME ZA DELJENJE
+st.markdown("""
+    <div style="display: flex; justify-content: center; margin: 10px 0 20px 0;">
+        <a href="https://berber-app-cist.streamlit.app" target="_blank" 
+           style="background-color: #d4af37; 
+                  color: #4a2c1a; 
+                  padding: 12px 30px; 
+                  border-radius: 8px; 
+                  text-decoration: none; 
+                  font-weight: bold; 
+                  font-size: 18px;
+                  border: 2px solid #b8960a;
+                  box-shadow: 0 4px 8px rgba(0,0,0,0.3);">
+            📤 Podeli link klijentima
+        </a>
+    </div>
+""", unsafe_allow_html=True)
+
+st.divider()
 
 tab1, tab2 = st.tabs(["📅 Zakazivanje", "🔑 Admin Panel"])
 
